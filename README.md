@@ -37,7 +37,7 @@
 | **Apache ZooKeeper** | `confluentinc/cp-zookeeper:7.9.2` | 2181 |
 | **Apache Spark** | `bitnami/spark:3.5.6` | 8081, 7077 |
 | **Apache Flink** | `flink:1.20.1-scala_2.12-java11` (custom) | 8082 |
-| **Apache NiFi** | `apache/nifi:2.4.0` (perfil opcional) | 8080 |
+| **Apache NiFi** | `apache/nifi:2.4.0` (perfil opcional) | 8443 (HTTPS) |
 | **Streamlit** | `streamlit==1.45.1` | 8501 |
 | **Grafana** | `grafana/grafana:12.0.1` | 3000 |
 | **FastAPI** | `fastapi==0.115.12` | 8000 |
@@ -150,7 +150,7 @@ Todos los servicios deben aparecer como `healthy` o `running` tras ~60 segundos.
 | 🔌 **FastAPI** (REST + Swagger) | http://localhost:8000/docs | — |
 | 🌊 **Flink** (Web Dashboard) | http://localhost:8082 | — |
 | 🔥 **Spark** (Web UI) | http://localhost:8081 | — |
-| 📦 **NiFi** (perfil nifi) | http://localhost:8080/nifi | admin / admin123456789 |
+| 📦 **NiFi** (perfil nifi) | https://localhost:8443/nifi | admin / admin123456789 |
 
 ---
 

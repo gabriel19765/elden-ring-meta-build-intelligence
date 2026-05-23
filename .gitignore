@@ -37,11 +37,15 @@ htmlcov/
 logs/
 *.out
 
-# Si hay montajes locales de bases de datos
+# Si hay montajes locales de bases de datos o flujos
 postgres_data/
 nifi_data/
 spark_data/
 grafana_data/
+nifi/flows/checkpoint
+nifi/flows/journals/
+nifi/flows/database_repository/
+nifi/flows/flowfile_repository/
 
 # ─── Apache Spark / Hadoop ───────────────────────────────────────────────────
 spark-warehouse/
