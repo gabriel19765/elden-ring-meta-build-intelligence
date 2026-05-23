@@ -22,7 +22,13 @@ VALUES
 -- Otras builds
 ('w006', 'Bloodhound''s Fang',      'Curved Greatsword','Melee', 141,   0,   0,  0,  0, 11.5, 18, 17,  0, 'D', 'C', '',  '',  '',   'seed'),
 ('w009', 'Reduvia',                 'Dagger',           'Melee',  79,   0,   0,  0,  0,  2.5,  5, 13,  0, 'E', 'C', '',  '',  'D',  'seed'),
-('w010', 'Morgott''s Cursed Sword', 'Curved Greatsword','Melee', 112,   0,   0,  0, 88,  9.0, 14, 35,  0, 'D', 'D', '',  'D', '',   'seed')
+('w010', 'Morgott''s Cursed Sword', 'Curved Greatsword','Melee', 112,   0,   0,  0, 88,  9.0, 14, 35,  0, 'D', 'D', '',  'D', '',   'seed'),
+-- Armas Legendarias adicionales
+('w011', 'Grafted Blade Greatsword',  'Colossal Sword',   'Melee', 162,   0,   0,  0,  0, 21.0, 40, 14,  0, 'C', 'E', '',  '',  '',   'seed'),
+('w012', 'Sacred Relic Sword',         'Greatsword',       'Melee',  85,   0,   0,  0, 77, 11.0, 14, 24,  0, 'D', 'D', '',  'D', '',   'seed'),
+('w013', 'Hand of Malenia',             'Katana',           'Melee', 117,   0,   0,  0,  0,  9.5, 16, 48,  0, 'E', 'B', '',  '',  '',   'seed'),
+('w014', 'Winged Scythe',               'Reaper',           'Melee',  87,   0,   0,  0, 104, 7.5, 16, 16,  0, 'E', 'D', '',  'D', '',   'seed'),
+('w015', 'Bolt of Gransax',             'Spear',            'Melee',  98,   0,   0, 98,  0,  8.5, 20, 40,  0, 'D', 'C', '',  '',  '',   'seed' )
 ON CONFLICT (weapon_id) DO NOTHING;
 
 -- ─── JEFES ──────────────────────────────────────────────────────────────────
@@ -82,5 +88,20 @@ INSERT INTO weapon_boss_effectiveness (weapon_id, boss_id, effectiveness_score) 
 ('w009','b005', 64.0), ('w009','b006', 58.0), ('w009','b007', 73.0), ('w009','b008', 60.0),
 -- Morgott's Cursed Sword (w010): holy + curved GS
 ('w010','b001', 76.0), ('w010','b002', 74.0), ('w010','b003', 70.0), ('w010','b004', 68.0),
-('w010','b005', 79.0), ('w010','b006', 66.0), ('w010','b007', 72.0), ('w010','b008', 84.0)
+('w010','b005', 79.0), ('w010','b006', 66.0), ('w010','b007', 72.0), ('w010','b008', 84.0),
+-- Grafted Blade Greatsword (w011): colossal STR powerhouse
+('w011','b001', 77.0), ('w011','b002', 85.0), ('w011','b003', 68.0), ('w011','b004', 80.0),
+('w011','b005', 78.0), ('w011','b006', 91.0), ('w011','b007', 62.0), ('w011','b008', 70.0),
+-- Sacred Relic Sword (w012): holy AoE wave
+('w012','b001', 82.5), ('w012','b002', 80.0), ('w012','b003', 75.0), ('w012','b004', 78.0),
+('w012','b005', 84.0), ('w012','b006', 70.0), ('w012','b007', 75.0), ('w012','b008', 92.5),
+-- Hand of Malenia (w013): dex waterfowldance
+('w013','b001', 80.0), ('w013','b002', 83.5), ('w013','b003', 74.0), ('w013','b004', 72.0),
+('w013','b005', 76.0), ('w013','b006', 78.0), ('w013','b007', 60.0), ('w013','b008', 68.0),
+-- Winged Scythe (w014): holy reaper, fast attacks
+('w014','b001', 74.5), ('w014','b002', 72.0), ('w014','b003', 70.0), ('w014','b004', 71.0),
+('w014','b005', 79.5), ('w014','b006', 64.0), ('w014','b007', 73.0), ('w014','b008', 86.0),
+-- Bolt of Gransax (w015): lightning sniper spear
+('w015','b001', 88.0), ('w015','b002', 92.0), ('w015','b003', 80.0), ('w015','b004', 85.0),
+('w015','b005', 86.0), ('w015','b006', 82.0), ('w015','b007', 80.0), ('w015','b008', 75.0)
 ON CONFLICT (weapon_id, boss_id) DO NOTHING;

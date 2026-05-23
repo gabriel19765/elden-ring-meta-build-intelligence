@@ -18,7 +18,8 @@ SIMULATION_SPEED = float(os.getenv('SIMULATION_SPEED', '1.0'))
 # Datos de ejemplo
 WEAPONS = [
     'w001', 'w002', 'w003', 'w004', 'w005', 
-    'w006', 'w007', 'w008', 'w009', 'w010'
+    'w006', 'w007', 'w008', 'w009', 'w010',
+    'w011', 'w012', 'w013', 'w014', 'w015'
 ]
 
 BOSSES = [
