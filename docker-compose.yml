@@ -39,7 +39,7 @@ services:
     networks:
       - elden_network
     healthcheck:
-      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/2181'"]
       interval: 10s
       timeout: 5s
       retries: 5
