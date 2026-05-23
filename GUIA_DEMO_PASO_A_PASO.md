@@ -48,10 +48,14 @@ docker compose run --rm spark-batch
 3. **Inicia sesión:**
    * **Usuario:** `admin`
    * **Contraseña:** `admin123456789`
-4. **Demostración visual:** 
-   * Muestra el lienzo con los dos bloques interconectados: `InvokeHTTP` ➡️ `PublishKafka`.
-   * Haz clic derecho sobre el lienzo vacío y selecciona **Start** para encender el flujo en vivo.
-   * *¡Verás cómo los contadores de mensajes cambian a verde demostrando la ingesta interactiva en tiempo real!*
+4. **Cómo Importar el Flujo JSON (En 2 segundos):**
+   * Arrastra el icono de **Process Group** (el cuarto icono de la barra superior, representado por **dos cuadrados superpuestos**) al lienzo central.
+   * En la ventana emergente, haz clic en el icono de **Upload / Browse** (el botón con un icono de caja y flecha hacia arriba, situado justo a la derecha de la casilla del Nombre).
+   * Selecciona el archivo JSON de tu repositorio:
+     📂 `/home/gabi/CLASE/BIG_DATA_APLICADO/proyecto final/nifi/flows/elden_ring_ingest.json`
+   * Haz clic en **Add**.
+   * ¡Y listo! Aparecerá al instante el grupo con todo tu flujo pre-configurado y válido de `InvokeHTTP` ➡️ `PublishKafka`.
+   * Entra en él haciendo doble clic y enciende los procesadores haciendo clic derecho -> **Start**.
 
 ---
 
