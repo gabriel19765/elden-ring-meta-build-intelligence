@@ -9,7 +9,6 @@ RUN pip install --no-cache-dir \
 
 # Download PostgreSQL JDBC driver (use a directory not overridden by Bitnami)
 RUN mkdir -p /opt/bitnami/spark/user-jars && \
-    wget -q -O /opt/bitnami/spark/user-jars/postgresql-42.7.4.jar \
-    "https://jdbc.postgresql.org/download/postgresql-42.7.4.jar"
+    python3 -c "import urllib.request; urllib.request.urlretrieve('https://jdbc.postgresql.org/download/postgresql-42.7.4.jar', '/opt/bitnami/spark/user-jars/postgresql-42.7.4.jar')"
 
 USER 1001
