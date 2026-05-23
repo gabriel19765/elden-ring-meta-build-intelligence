@@ -9,8 +9,8 @@ set -euo pipefail
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 PASS=0; FAIL=0
 
-ok()   { echo -e "  ${GREEN}✅ PASS${NC} — $1"; ((PASS++)); }
-fail() { echo -e "  ${RED}❌ FAIL${NC} — $1"; ((FAIL++)); }
+ok()   { echo -e "  ${GREEN}✅ PASS${NC} — $1"; ((PASS++)) || true; }
+fail() { echo -e "  ${RED}❌ FAIL${NC} — $1"; ((FAIL++)) || true; }
 info() { echo -e "  ${YELLOW}ℹ️  INFO${NC} — $1"; }
 section() { echo -e "\n${CYAN}═══ $1 ═══${NC}"; }
 
