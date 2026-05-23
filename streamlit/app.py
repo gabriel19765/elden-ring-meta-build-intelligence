@@ -208,6 +208,11 @@ if page == "🏠 Dashboard Principal":
             ORDER BY avg_effectiveness ASC
         """)
         if not hard.empty:
+            # Saneamiento de NaNs para evitar fallos en Plotly Scatter size
+            hard = hard.dropna(subset=["avg_effectiveness"])
+            hard["health_points"] = pd.to_numeric(hard["health_points"], errors="coerce").fillna(1000.0)
+            hard["health_points"] = hard["health_points"].apply(lambda x: max(x, 100.0))
+
             fig2 = px.scatter(
                 hard, x="health_points", y="avg_effectiveness",
                 text="boss", size="health_points", color="avg_effectiveness",
@@ -389,9 +394,13 @@ elif page == "📊 Rankings en Tiempo Real":
         st.dataframe(rank_df, use_container_width=True, hide_index=True)
 
         st.subheader("📈 Popularidad vs Efectividad Real")
+        # Saneamiento de NaNs para evitar fallos en Plotly Scatter size
+        rank_df["Victorias"] = pd.to_numeric(rank_df["Victorias"], errors="coerce").fillna(0.0)
+        rank_df["size_victorias"] = rank_df["Victorias"].apply(lambda x: max(x, 1.0))
+
         fig_sc = px.scatter(
             rank_df, x="Intentos", y="Win Rate (%)",
-            size="Victorias", color="Arma",
+            size="size_victorias", color="Arma",
             hover_name="Arma", text="Arma", size_max=30,
             template="plotly_dark",
         )
