@@ -114,7 +114,7 @@ services:
   # APACHE SPARK (Master + Worker)
   # ============================================
   spark-master:
-    image: bitnami/spark:3.5.6
+    image: bitnamilegacy/spark:3.5.0
     container_name: er_spark_master
     environment:
       - SPARK_MODE=master
@@ -137,7 +137,7 @@ services:
         condition: service_healthy
 
   spark-worker:
-    image: bitnami/spark:3.5.6
+    image: bitnamilegacy/spark:3.5.0
     container_name: er_spark_worker
     environment:
       - SPARK_MODE=worker
