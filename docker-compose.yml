@@ -94,9 +94,9 @@ services:
     image: apache/nifi:2.4.0
     container_name: er_nifi
     ports:
-      - "8080:8080"
+      - "8443:8443"
     environment:
-      - NIFI_WEB_HTTP_PORT=8080
+      - NIFI_WEB_HTTPS_PORT=8443
       - SINGLE_USER_CREDENTIALS_USERNAME=admin
       - SINGLE_USER_CREDENTIALS_PASSWORD=admin123456789
     volumes:
