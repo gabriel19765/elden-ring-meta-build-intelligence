@@ -101,7 +101,6 @@ services:
       - SINGLE_USER_CREDENTIALS_PASSWORD=admin123456789
     volumes:
       - nifi_data:/opt/nifi/nifi-current/conf
-      - ./nifi/flows:/opt/nifi/nifi-current/flowfile_repository
     networks:
       - elden_network
     depends_on:
