@@ -57,16 +57,27 @@ def get_spark():
 
 # ── Ingesta desde la API ───────────────────────────────────────────────────────
 def fetch_api(endpoint: str, limit: int = 100) -> list:
+    # Intentamos primero descargar del repositorio de datos estable de deliton/eldenring-api en GitHub
     try:
-        url = f"{ELDENRING_API_BASE}/{endpoint}?limit={limit}"
+        url = f"https://raw.githubusercontent.com/deliton/eldenring-api/main/api/public/data/{endpoint}.json"
+        log.info(f"  Intentando descargar datos desde GitHub (deliton/eldenring-api): {url}")
         r = requests.get(url, timeout=30)
         r.raise_for_status()
-        data = r.json().get("data", [])
-        log.info(f"  API {endpoint}: {len(data)} registros recibidos")
+        data = r.json()
+        log.info(f"  GitHub {endpoint}: {len(data)} registros estáticos recibidos")
         return data
-    except Exception as e:
-        log.warning(f"  API {endpoint} no disponible ({e}). Usando solo seed data.")
-        return []
+    except Exception as e_gh:
+        log.warning(f"  No se pudo descargar de GitHub ({e_gh}). Intentando Fan API...")
+        try:
+            url = f"{ELDENRING_API_BASE}/{endpoint}?limit={limit}"
+            r = requests.get(url, timeout=30)
+            r.raise_for_status()
+            data = r.json().get("data", [])
+            log.info(f"  API {endpoint}: {len(data)} registros recibidos")
+            return data
+        except Exception as e:
+            log.warning(f"  API {endpoint} no disponible ({e}). Usando solo seed data.")
+            return []
 
 
 # ── Procesamiento de Armas ─────────────────────────────────────────────────────
@@ -74,6 +85,51 @@ def process_weapons(spark: SparkSession, api_weapons: list):
     if not api_weapons:
         log.info("  Sin datos de API para armas. Continuando con seed data.")
         return
+
+    # Normalizar tipos de datos de Python antes de crear el DataFrame en Spark
+    cleaned_weapons = []
+    for item in api_weapons:
+        if not isinstance(item, dict) or "id" not in item or "name" not in item:
+            continue
+        
+        weight_val = item.get("weight")
+        try:
+            weight = float(weight_val) if weight_val is not None else None
+        except Exception:
+            weight = None
+            
+        attack = []
+        for att in item.get("attack", []):
+            if isinstance(att, dict) and "name" in att:
+                try:
+                    amount = int(att.get("amount", 0))
+                except Exception:
+                    amount = 0
+                attack.append({"name": str(att["name"]), "amount": amount})
+                
+        req_attr = []
+        for req in item.get("requiredAttributes", []):
+            if isinstance(req, dict) and "name" in req:
+                try:
+                    amount = int(req.get("amount", 0))
+                except Exception:
+                    amount = 0
+                req_attr.append({"name": str(req["name"]), "amount": amount})
+                
+        scales = []
+        for sc in item.get("scalesWith", []):
+            if isinstance(sc, dict) and "name" in sc:
+                scales.append({"name": str(sc["name"]), "scaling": str(sc.get("scaling", ""))})
+                
+        cleaned_weapons.append({
+            "id": str(item["id"]),
+            "name": str(item["name"]),
+            "category": str(item.get("category", "")),
+            "weight": weight,
+            "attack": attack,
+            "requiredAttributes": req_attr,
+            "scalesWith": scales
+        })
 
     schema = StructType([
         StructField("id",          StringType(), True),
@@ -94,7 +150,7 @@ def process_weapons(spark: SparkSession, api_weapons: list):
         ])), True),
     ])
 
-    df = spark.createDataFrame(api_weapons, schema)
+    df = spark.createDataFrame(cleaned_weapons, schema)
 
     def _dmg(col_ref, index, label):
         """Extrae daño por índice de array, comprobando el nombre del tipo."""
@@ -130,16 +186,38 @@ def process_weapons(spark: SparkSession, api_weapons: list):
         .dropDuplicates(["weapon_id"])
     )
 
+    # Filtrar armas que ya existen en base de datos para prevenir colisiones de clave primaria
+    try:
+        existing_weapons = (
+            spark.read
+            .format("jdbc")
+            .options(**JDBC_WRITE_OPTS)
+            .option("dbtable", "weapons")
+            .load()
+            .select(col("weapon_id").alias("exist_id"))
+        )
+        df_clean = df_clean.join(
+            existing_weapons,
+            df_clean.weapon_id == existing_weapons.exist_id,
+            "left_anti"
+        )
+        log.info("  Filtro anti-duplicados aplicado con éxito para armas")
+    except Exception as e_read:
+        log.warning(f"  No se pudieron leer armas existentes para filtrado ({e_read}). Continuando sin filtrar.")
+
     count = df_clean.count()
-    (
-        df_clean.write
-        .format("jdbc")
-        .options(**JDBC_WRITE_OPTS)
-        .option("dbtable", "weapons")
-        .mode("append")
-        .save()
-    )
-    log.info(f"  ✅ {count} armas escritas desde API")
+    if count > 0:
+        (
+            df_clean.write
+            .format("jdbc")
+            .options(**JDBC_WRITE_OPTS)
+            .option("dbtable", "weapons")
+            .mode("append")
+            .save()
+        )
+        log.info(f"  ✅ {count} nuevas armas escritas desde API")
+    else:
+        log.info("  ℹ️ No hay armas nuevas que escribir (todas ya existen en la BD)")
 
 
 # ── Procesamiento de Jefes ─────────────────────────────────────────────────────
@@ -147,6 +225,29 @@ def process_bosses(spark: SparkSession, api_bosses: list):
     if not api_bosses:
         log.info("  Sin datos de API para jefes. Continuando con seed data.")
         return
+
+    # Normalizar tipos de datos de Python para jefes
+    cleaned_bosses = []
+    for item in api_bosses:
+        if not isinstance(item, dict) or "id" not in item or "name" not in item:
+            continue
+        
+        drops_raw = item.get("drops", [])
+        drops = []
+        if isinstance(drops_raw, list):
+            for d in drops_raw:
+                if d is not None:
+                    drops.append(str(d))
+        elif drops_raw is not None:
+            drops.append(str(drops_raw))
+            
+        cleaned_bosses.append({
+            "id": str(item["id"]),
+            "name": str(item["name"]),
+            "location": str(item.get("location", "")) if item.get("location") is not None else None,
+            "healthPoints": str(item.get("healthPoints", "")) if item.get("healthPoints") is not None else None,
+            "drops": drops
+        })
 
     schema = StructType([
         StructField("id",           StringType(), True),
@@ -156,7 +257,7 @@ def process_bosses(spark: SparkSession, api_bosses: list):
         StructField("drops",        ArrayType(StringType()), True),
     ])
 
-    df = spark.createDataFrame(api_bosses, schema)
+    df = spark.createDataFrame(cleaned_bosses, schema)
     df_clean = (
         df.select(
             col("id").alias("boss_id"),
@@ -174,16 +275,38 @@ def process_bosses(spark: SparkSession, api_bosses: list):
         .dropDuplicates(["boss_id"])
     )
 
+    # Filtrar jefes que ya existen en base de datos para prevenir colisiones de clave primaria
+    try:
+        existing_bosses = (
+            spark.read
+            .format("jdbc")
+            .options(**JDBC_WRITE_OPTS)
+            .option("dbtable", "bosses")
+            .load()
+            .select(col("boss_id").alias("exist_id"))
+        )
+        df_clean = df_clean.join(
+            existing_bosses,
+            df_clean.boss_id == existing_bosses.exist_id,
+            "left_anti"
+        )
+        log.info("  Filtro anti-duplicados aplicado con éxito para jefes")
+    except Exception as e_read:
+        log.warning(f"  No se pudieron leer jefes existentes para filtrado ({e_read}). Continuando sin filtrar.")
+
     count = df_clean.count()
-    (
-        df_clean.write
-        .format("jdbc")
-        .options(**JDBC_WRITE_OPTS)
-        .option("dbtable", "bosses")
-        .mode("append")
-        .save()
-    )
-    log.info(f"  ✅ {count} jefes escritos desde API")
+    if count > 0:
+        (
+            df_clean.write
+            .format("jdbc")
+            .options(**JDBC_WRITE_OPTS)
+            .option("dbtable", "bosses")
+            .mode("append")
+            .save()
+        )
+        log.info(f"  ✅ {count} nuevos jefes escritos desde API")
+    else:
+        log.info("  ℹ️ No hay jefes nuevos que escribir (todas ya existen en la BD)")
 
 
 # ── Cálculo de Efectividad ─────────────────────────────────────────────────────
@@ -226,18 +349,38 @@ def calculate_effectiveness(spark: SparkSession):
         .select("weapon_id", "boss_id", "effectiveness_score")
     )
 
+    # Filtrar pares arma/jefe que ya existen para prevenir colisiones de clave primaria
+    try:
+        existing_eff = (
+            spark.read
+            .format("jdbc")
+            .options(**JDBC_WRITE_OPTS)
+            .option("dbtable", "weapon_boss_effectiveness")
+            .load()
+            .select(col("weapon_id").alias("exist_w_id"), col("boss_id").alias("exist_b_id"))
+        )
+        effectiveness_df = effectiveness_df.join(
+            existing_eff,
+            (effectiveness_df.weapon_id == existing_eff.exist_w_id) & (effectiveness_df.boss_id == existing_eff.exist_b_id),
+            "left_anti"
+        )
+        log.info("  Filtro anti-duplicados aplicado con éxito para la matriz de efectividad")
+    except Exception as e_read:
+        log.warning(f"  No se pudieron leer efectividades existentes para filtrado ({e_read}). Continuando sin filtrar.")
+
     count = effectiveness_df.count()
-    (
-        effectiveness_df.write
-        .format("jdbc")
-        .options(**JDBC_WRITE_OPTS)
-        .option("dbtable", "weapon_boss_effectiveness")
-        # Usamos append; los conflictos en (weapon_id, boss_id) son ignorados
-        # porque el seed ya los insertó y los de la API son nuevos IDs
-        .mode("append")
-        .save()
-    )
-    log.info(f"  ✅ {count} pares arma/jefe calculados")
+    if count > 0:
+        (
+            effectiveness_df.write
+            .format("jdbc")
+            .options(**JDBC_WRITE_OPTS)
+            .option("dbtable", "weapon_boss_effectiveness")
+            .mode("append")
+            .save()
+        )
+        log.info(f"  ✅ {count} nuevos pares arma/jefe calculados y escritos")
+    else:
+        log.info("  ℹ️ No hay nuevos pares de efectividad que calcular (todos ya existen en la BD)")
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────

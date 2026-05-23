@@ -166,16 +166,7 @@ services:
     volumes:
       - ./spark/jobs:/opt/spark-jobs
       - ./spark/jars:/opt/bitnami/spark/user-jars
-    command: >
-      bash -c "
-        pip install --quiet requests psycopg2-binary &&
-        spark-submit
-          --master spark://spark-master:7077
-          --jars /opt/bitnami/spark/user-jars/postgresql-42.7.4.jar
-          --driver-class-path /opt/bitnami/spark/user-jars/postgresql-42.7.4.jar
-          --conf spark.driver.extraJavaOptions=-Dlog4j.logLevel=WARN
-          /opt/spark-jobs/batch_processing.py
-      "
+    command: bash -c "pip install --quiet requests psycopg2-binary && spark-submit --master spark://spark-master:7077 --jars /opt/bitnami/spark/user-jars/postgresql-42.7.4.jar --driver-class-path /opt/bitnami/spark/user-jars/postgresql-42.7.4.jar --conf spark.driver.extraJavaOptions=-Dlog4j.logLevel=WARN /opt/spark-jobs/batch_processing.py"
     networks:
       - elden_network
     depends_on:

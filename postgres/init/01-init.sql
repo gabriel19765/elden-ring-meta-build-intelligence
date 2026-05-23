@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS weapons (
 CREATE TABLE IF NOT EXISTS bosses (
     boss_id           VARCHAR(50)  PRIMARY KEY,
     name              VARCHAR(100) NOT NULL,
-    location          VARCHAR(100) DEFAULT 'Unknown',
+    location          VARCHAR(500) DEFAULT 'Unknown',
     health_points     INTEGER      DEFAULT 0,
     defense_physical  INTEGER      DEFAULT 100,
     defense_magic     INTEGER      DEFAULT 100,
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS player_events (
     event_type        VARCHAR(30)  NOT NULL CHECK (event_type IN ('death','victory','equip_weapon','enter_boss')),
     weapon_id         VARCHAR(50)  NOT NULL,
     boss_id           VARCHAR(50)  NOT NULL,
-    location          VARCHAR(100) DEFAULT 'Unknown',
+    location          VARCHAR(500) DEFAULT 'Unknown',
     timestamp         TIMESTAMP    NOT NULL DEFAULT NOW(),
     is_meta_weapon    BOOLEAN      DEFAULT FALSE,
     created_at        TIMESTAMP    DEFAULT NOW()
