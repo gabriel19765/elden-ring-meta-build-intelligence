@@ -1,0 +1,62 @@
+# ============================================================================
+# .gitignore — Elden Ring Meta-Build Intelligence
+# Evita subir archivos temporales, credenciales o cachés locales a GitHub
+# ============================================================================
+
+# ─── Credenciales y Configuración (¡Crítico!) ─────────────────────────────────
+.env
+.env*.local
+
+# ─── Caché y Compilación de Python ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+.cache/
+htmlcov/
+.ruff_cache/
+
+# ─── Jupyter Notebooks ───────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# ─── IDEs y Editores de Texto ────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*~
+
+# ─── Datos locales y Logs de Contenedores ─────────────────────────────────────
+# Logs locales
+*.log
+logs/
+*.out
+
+# Si hay montajes locales de bases de datos
+postgres_data/
+nifi_data/
+spark_data/
+grafana_data/
+
+# ─── Apache Spark / Hadoop ───────────────────────────────────────────────────
+spark-warehouse/
+metastore_db/
+derby.log
+.spark-warehouse/
+
+# ─── Sistemas Operativos ─────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ─── Excepciones (Permitir estos específicamente) ───────────────────────────
+!notebooks/output/.gitkeep

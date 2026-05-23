@@ -1,0 +1,18 @@
+apiVersion: 1
+
+datasources:
+  - name: PostgreSQL
+    uid: postgres-main
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    user: elden
+    secureJsonData:
+      password: ring123
+    database: elden_ring
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1500
+      timescaledb: false
+    isDefault: true
+    editable: true

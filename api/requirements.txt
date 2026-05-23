@@ -1,0 +1,5 @@
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+psycopg2-binary==2.9.10
+pandas==2.2.3
+kafka-python==2.1.5

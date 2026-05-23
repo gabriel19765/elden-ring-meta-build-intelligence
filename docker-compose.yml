@@ -1,0 +1,373 @@
+services:
+  # ============================================
+  # POSTGRESQL - Base de datos principal
+  # ============================================
+  postgres:
+    image: postgres:17-alpine
+    container_name: er_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-elden}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ring123}
+      POSTGRES_DB: ${POSTGRES_DB:-elden_ring}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d
+    networks:
+      - elden_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-elden} -d ${POSTGRES_DB:-elden_ring}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ============================================
+  # APACHE ZOOKEEPER (para Kafka)
+  # ============================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.9.2
+    container_name: er_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_LOG4J_ROOT_LOGLEVEL: WARN
+    ports:
+      - "2181:2181"
+    networks:
+      - elden_network
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # APACHE KAFKA
+  # ============================================
+  kafka:
+    image: confluentinc/cp-kafka:7.9.2
+    container_name: er_kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+    networks:
+      - elden_network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.9.2
+    container_name: er_kafka_init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./kafka/init-topics.sh:/init-topics.sh
+    entrypoint: ["/bin/bash", "/init-topics.sh"]
+    networks:
+      - elden_network
+
+  # ============================================
+  # APACHE NIFI
+  # ============================================
+  nifi:
+    image: apache/nifi:2.4.0
+    container_name: er_nifi
+    ports:
+      - "8080:8080"
+    environment:
+      - NIFI_WEB_HTTP_PORT=8080
+      - SINGLE_USER_CREDENTIALS_USERNAME=admin
+      - SINGLE_USER_CREDENTIALS_PASSWORD=admin123456789
+    volumes:
+      - nifi_data:/opt/nifi/nifi-current/conf
+      - ./nifi/flows:/opt/nifi/nifi-current/flowfile_repository
+    networks:
+      - elden_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    profiles: ["nifi"]   # Solo arranca si se usa --profile nifi
+
+  # ============================================
+  # APACHE SPARK (Master + Worker)
+  # ============================================
+  spark-master:
+    image: bitnami/spark:3.5.6
+    container_name: er_spark_master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_MASTER_WEBUI_PORT=8080
+    ports:
+      - "8081:8080"
+      - "7077:7077"
+    volumes:
+      - spark_data:/bitnami
+      - ./spark/jobs:/opt/spark-jobs
+      - ./spark/jars:/opt/bitnami/spark/user-jars
+    networks:
+      - elden_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  spark-worker:
+    image: bitnami/spark:3.5.6
+    container_name: er_spark_worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
+    volumes:
+      - ./spark/jobs:/opt/spark-jobs
+      - ./spark/jars:/opt/bitnami/spark/user-jars
+    networks:
+      - elden_network
+    depends_on:
+      - spark-master
+
+  # Job de Spark Batch (ejecuta al iniciar y termina)
+  spark-batch-job:
+    build: ./spark
+    container_name: er_spark_batch
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-elden_ring}
+      - POSTGRES_USER=${POSTGRES_USER:-elden}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ring123}
+    volumes:
+      - ./spark/jobs:/opt/spark-jobs
+      - ./spark/jars:/opt/bitnami/spark/user-jars
+    command: >
+      bash -c "
+        pip install --quiet requests psycopg2-binary &&
+        spark-submit
+          --master spark://spark-master:7077
+          --jars /opt/bitnami/spark/user-jars/postgresql-42.7.4.jar
+          --driver-class-path /opt/bitnami/spark/user-jars/postgresql-42.7.4.jar
+          --conf spark.driver.extraJavaOptions=-Dlog4j.logLevel=WARN
+          /opt/spark-jobs/batch_processing.py
+      "
+    networks:
+      - elden_network
+    depends_on:
+      spark-master:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # ============================================
+  # APACHE FLINK (JobManager + TaskManager)
+  # ============================================
+  flink-jobmanager:
+    build: ./flink
+    container_name: er_flink_jobmanager
+    ports:
+      - "8082:8081"
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        jobmanager.memory.process.size: 1600m
+        parallelism.default: 2
+        web.submit.enable: true
+    volumes:
+      - ./flink/jobs:/opt/flink/jobs
+      - ./flink/jars:/opt/flink/usrlib
+    networks:
+      - elden_network
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  flink-taskmanager:
+    build: ./flink
+    container_name: er_flink_taskmanager
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.memory.process.size: 1728m
+        taskmanager.numberOfTaskSlots: 4
+    volumes:
+      - ./flink/jobs:/opt/flink/jobs
+      - ./flink/jars:/opt/flink/usrlib
+    networks:
+      - elden_network
+    depends_on:
+      - flink-jobmanager
+
+  flink-stream-job:
+    build: ./flink
+    container_name: er_flink_stream
+    volumes:
+      - ./flink/jobs:/opt/flink/jobs
+      - ./flink/jars:/opt/flink/usrlib
+    command: >
+      bash -c "
+        echo 'Esperando que JobManager esté listo...' &&
+        sleep 20 &&
+        python3 /opt/flink/jobs/stream_processing.py
+      "
+    networks:
+      - elden_network
+    depends_on:
+      flink-jobmanager:
+        condition: service_started
+      flink-taskmanager:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
+  # ============================================
+  # SIMULADOR DE EVENTOS (Python)
+  # ============================================
+  simulator:
+    build: ./simulator
+    container_name: er_simulator
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - SIMULATION_SPEED=${SIMULATION_SPEED:-2.0}
+    networks:
+      - elden_network
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # ============================================
+  # STREAMLIT APP
+  # ============================================
+  streamlit:
+    build: ./streamlit
+    container_name: er_streamlit
+    ports:
+      - "8501:8501"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-elden_ring}
+      - POSTGRES_USER=${POSTGRES_USER:-elden}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ring123}
+    networks:
+      - elden_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ============================================
+  # GRAFANA
+  # ============================================
+  grafana:
+    image: grafana/grafana:12.0.1
+    container_name: er_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/elden_ring_dashboard.json
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - elden_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ============================================
+  # API REST (FastAPI)
+  # ============================================
+  api:
+    build: ./api
+    container_name: er_api
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-elden_ring}
+      - POSTGRES_USER=${POSTGRES_USER:-elden}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ring123}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    networks:
+      - elden_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ============================================
+  # DISCORD BOT (Alertas)
+  # ============================================
+  discord-bot:
+    build: ./discord-bot
+    container_name: er_discord_bot
+    environment:
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-elden_ring}
+      - POSTGRES_USER=${POSTGRES_USER:-elden}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ring123}
+    networks:
+      - elden_network
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  nifi_data:
+  spark_data:
+  grafana_data:
+
+networks:
+  elden_network:
+    driver: bridge
